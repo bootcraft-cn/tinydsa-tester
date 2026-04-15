@@ -11,6 +11,8 @@ func GetDefinition() tester_definition.TesterDefinition {
 			// Phase 1: 线性结构
 			s01DynamicArrayTestCase(),
 			s02SinglyLinkedListTestCase(),
+			s03DoublyLinkedListTestCase(),
+			s04ArrayDequeTestCase(),
 		},
 	}
 }
@@ -22,6 +24,8 @@ func GetDefinition() tester_definition.TesterDefinition {
 var allJavaSources = []string{
 	"src/main/java/cn/bootcraft/tinydsa/DynamicArray.java",
 	"src/main/java/cn/bootcraft/tinydsa/SinglyLinkedList.java",
+	"src/main/java/cn/bootcraft/tinydsa/DoublyLinkedList.java",
+	"src/main/java/cn/bootcraft/tinydsa/ArrayDeque.java",
 }
 
 // javaRule creates a LanguageRule for Java auto-detection.
