@@ -14,6 +14,8 @@ func GetDefinition() tester_definition.TesterDefinition {
 			s03DoublyLinkedListTestCase(),
 			s04ArrayDequeTestCase(),
 			s05StackAndQueueTestCase(),
+			// Phase 2: 树与映射
+			s06BSTSearchInsertTestCase(),
 		},
 	}
 }
@@ -29,6 +31,7 @@ var allJavaSources = []string{
 	"src/main/java/cn/bootcraft/tinydsa/ArrayDeque.java",
 	"src/main/java/cn/bootcraft/tinydsa/Stack.java",
 	"src/main/java/cn/bootcraft/tinydsa/Queue.java",
+	"src/main/java/cn/bootcraft/tinydsa/BST.java",
 }
 
 // javaRule creates a LanguageRule for Java auto-detection.
