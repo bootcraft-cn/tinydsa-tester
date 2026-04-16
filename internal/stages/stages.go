@@ -13,6 +13,7 @@ func GetDefinition() tester_definition.TesterDefinition {
 			s02SinglyLinkedListTestCase(),
 			s03DoublyLinkedListTestCase(),
 			s04ArrayDequeTestCase(),
+			s05StackAndQueueTestCase(),
 		},
 	}
 }
@@ -26,6 +27,8 @@ var allJavaSources = []string{
 	"src/main/java/cn/bootcraft/tinydsa/SinglyLinkedList.java",
 	"src/main/java/cn/bootcraft/tinydsa/DoublyLinkedList.java",
 	"src/main/java/cn/bootcraft/tinydsa/ArrayDeque.java",
+	"src/main/java/cn/bootcraft/tinydsa/Stack.java",
+	"src/main/java/cn/bootcraft/tinydsa/Queue.java",
 }
 
 // javaRule creates a LanguageRule for Java auto-detection.
