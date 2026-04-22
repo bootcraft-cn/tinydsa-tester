@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build tester
+        run: go build -v .
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Verify binary
+        run: ./tinydsa-tester --help
+
+  regression-test:
+    needs: unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ghcr.io/bootcraft-cn/tinydsa-tester:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Checkout solution (java branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: java
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-java
+
+      - name: Checkout solution (python branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: python
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-python
+
+      - name: Checkout solution (go branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: go
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-go
+
+      - name: Checkout solution (typescript branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: typescript
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-typescript
+
+      - name: Run regression tests
+        run: |
+          STAGES=(
+            dynamic-array singly-linked-list doubly-linked-list
+            array-deque stack-and-queue bst-search-insert
+          )
+          LANGUAGES=(java python go typescript)
+
+          FAILED=()
+          TOTAL=0
+          for lang in "${LANGUAGES[@]}"; do
+            for stage in "${STAGES[@]}"; do
+              TOTAL=$((TOTAL + 1))
+              find "$(pwd)/solution-${lang}" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+              echo "Testing ${stage} (${lang})..."
+              if docker run --rm --user $(id -u):$(id -g) \
+                -v "$(pwd)/solution-${lang}:/workspace" \
+                ghcr.io/bootcraft-cn/tinydsa-tester:test \
+                -s "$stage" -d /workspace; then
+                echo "✓ ${stage} (${lang}) passed"
+              else
+                echo "✗ ${stage} (${lang}) failed"
+                FAILED+=("${stage}:${lang}")
+              fi
+            done
+          done
+
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo ""
+            echo "Failed: ${FAILED[*]}"
+            exit 1
+          fi
+
+          echo ""
+          echo "All ${TOTAL} tests passed!"

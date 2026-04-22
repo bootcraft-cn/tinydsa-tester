@@ -1,0 +1,195 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: bootcraft-cn/tinydsa-tester
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build tester
+        run: go build -v .
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Verify binary
+        run: ./tinydsa-tester --help
+
+  regression-test:
+    needs: unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ghcr.io/bootcraft-cn/tinydsa-tester:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Checkout solution (java branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: java
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-java
+
+      - name: Checkout solution (python branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: python
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-python
+
+      - name: Checkout solution (go branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: go
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-go
+
+      - name: Checkout solution (typescript branch)
+        uses: actions/checkout@v4
+        with:
+          repository: bootcraft-cn/tinydsa-solution
+          ref: typescript
+          token: ${{ secrets.SOLUTION_REPO_PAT }}
+          path: solution-typescript
+
+      - name: Run regression tests
+        run: |
+          STAGES=(
+            dynamic-array singly-linked-list doubly-linked-list
+            array-deque stack-and-queue bst-search-insert
+          )
+          LANGUAGES=(java python go typescript)
+
+          FAILED=()
+          TOTAL=0
+          for lang in "${LANGUAGES[@]}"; do
+            for stage in "${STAGES[@]}"; do
+              TOTAL=$((TOTAL + 1))
+              find "$(pwd)/solution-${lang}" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+              echo "Testing ${stage} (${lang})..."
+              if docker run --rm --user $(id -u):$(id -g) \
+                -v "$(pwd)/solution-${lang}:/workspace" \
+                ghcr.io/bootcraft-cn/tinydsa-tester:test \
+                -s "$stage" -d /workspace; then
+                echo "✓ ${stage} (${lang}) passed"
+              else
+                echo "✗ ${stage} (${lang}) failed"
+                FAILED+=("${stage}:${lang}")
+              fi
+            done
+          done
+
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo ""
+            echo "Failed: ${FAILED[*]}"
+            exit 1
+          fi
+
+          echo ""
+          echo "All ${TOTAL} tests passed!"
+
+  release-binary:
+    needs: regression-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build static binary (linux/amd64)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o tinydsa-tester-linux-amd64 .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: tinydsa-tester-linux-amd64
+          generate_release_notes: true
+
+  release-image:
+    needs: regression-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Build and push multi-platform image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
