@@ -78,16 +78,17 @@ func goRule(testDriver string) tester_definition.LanguageRule {
 }
 
 // tsRule creates a LanguageRule for TypeScript auto-detection.
-// Uses `tsx` directly (pre-installed globally in the runtime image) instead
-// of `npx tsx` to avoid a per-run npx download into HOME, which both wastes
-// time and historically tripped a tsx@4.21 WASM OOM on Node 18.
+// Uses Node 22's built-in --experimental-strip-types instead of tsx/ts-node
+// to avoid the es-module-lexer WASM dependency, which OOMs inside docker.
+// Student solutions only use type-erasure syntax (annotations, interfaces),
+// which strip-types handles without any runtime transform.
 func tsRule(testDriver string) tester_definition.LanguageRule {
 	return tester_definition.LanguageRule{
 		DetectFile: "src/dynamicArray.ts",
 		Language:   "typescript",
 		Source:     "src/dynamicArray.ts",
-		RunCmd:     "tsx",
-		RunArgs:    []string{"tests/" + testDriver + ".ts"},
+		RunCmd:     "node",
+		RunArgs:    []string{"--experimental-strip-types", "--no-warnings=ExperimentalWarning", "tests/" + testDriver + ".ts"},
 	}
 }
 
