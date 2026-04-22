@@ -33,10 +33,12 @@ FROM debian:bookworm-slim
 # - python3:               Python interpreter
 # - golang:                Go toolchain (for go starter's run.sh)
 # - nodejs 20 + tsx:       Node.js 20 (NodeSource) for TypeScript via tsx.
-#                          Node 18 (debian default) hits a tsx WASM OOM bug,
-#                          so we explicitly install Node 20 and pre-install
-#                          tsx globally to avoid `npx tsx` re-downloading it
-#                          on every test run.
+#                          Pin tsx to 4.19.4 — the last release before the
+#                          es-module-lexer was migrated to a WASM build
+#                          (tsx >=4.20) which fails inside docker-in-docker
+#                          with "WebAssembly.instantiate(): Out of memory"
+#                          due to seccomp-restricted WASM memory allocation.
+#                          See: https://github.com/privatenumber/tsx/issues/624
 # - ca-certificates + curl + gnupg: needed for the NodeSource setup script.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-jdk-headless \
@@ -47,7 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g tsx@4.21.0 \
+    && npm install -g tsx@4.19.4 \
     && apt-get purge -y curl gnupg \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
