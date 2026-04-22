@@ -78,13 +78,16 @@ func goRule(testDriver string) tester_definition.LanguageRule {
 }
 
 // tsRule creates a LanguageRule for TypeScript auto-detection.
+// Uses `tsx` directly (pre-installed globally in the runtime image) instead
+// of `npx tsx` to avoid a per-run npx download into HOME, which both wastes
+// time and historically tripped a tsx@4.21 WASM OOM on Node 18.
 func tsRule(testDriver string) tester_definition.LanguageRule {
 	return tester_definition.LanguageRule{
 		DetectFile: "src/dynamicArray.ts",
 		Language:   "typescript",
 		Source:     "src/dynamicArray.ts",
-		RunCmd:     "npx",
-		RunArgs:    []string{"tsx", "tests/" + testDriver + ".ts"},
+		RunCmd:     "tsx",
+		RunArgs:    []string{"tests/" + testDriver + ".ts"},
 	}
 }
 

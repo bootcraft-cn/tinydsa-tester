@@ -32,15 +32,24 @@ FROM debian:bookworm-slim
 # - default-jdk-headless: Java compiler and runtime (javac/java)
 # - python3:               Python interpreter
 # - golang:                Go toolchain (for go starter's run.sh)
-# - nodejs + npm:          Node.js for TypeScript (tsx / ts-node)
-# - ca-certificates:       HTTPS for any solutions hitting the network
-RUN apt-get update && apt-get install -y \
+# - nodejs 20 + tsx:       Node.js 20 (NodeSource) for TypeScript via tsx.
+#                          Node 18 (debian default) hits a tsx WASM OOM bug,
+#                          so we explicitly install Node 20 and pre-install
+#                          tsx globally to avoid `npx tsx` re-downloading it
+#                          on every test run.
+# - ca-certificates + curl + gnupg: needed for the NodeSource setup script.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     default-jdk-headless \
     python3 \
     golang \
-    nodejs \
-    npm \
     ca-certificates \
+    curl \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g tsx@4.21.0 \
+    && apt-get purge -y curl gnupg \
+    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for running tests
