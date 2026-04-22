@@ -78,17 +78,19 @@ func goRule(testDriver string) tester_definition.LanguageRule {
 }
 
 // tsRule creates a LanguageRule for TypeScript auto-detection.
-// Uses Node 22's built-in --experimental-strip-types instead of tsx/ts-node
-// to avoid the es-module-lexer WASM dependency, which OOMs inside docker.
-// Student solutions only use type-erasure syntax (annotations, interfaces),
-// which strip-types handles without any runtime transform.
+// Compiles the project with `tsc -p .` (handled by tester-utils' typescript
+// CompileStep case), then runs the emitted dist/tests/<driver>.js with node.
+// We use tsc instead of tsx / esbuild / swc / Node's --experimental-strip-types
+// because all of those ship a WASM module that OOMs in our docker sandbox.
+// tsc is pure JavaScript and just works; the small startup cost is fine for
+// a per-test compile.
 func tsRule(testDriver string) tester_definition.LanguageRule {
 	return tester_definition.LanguageRule{
 		DetectFile: "src/dynamicArray.ts",
 		Language:   "typescript",
 		Source:     "src/dynamicArray.ts",
 		RunCmd:     "node",
-		RunArgs:    []string{"--experimental-strip-types", "--no-warnings=ExperimentalWarning", "tests/" + testDriver + ".ts"},
+		RunArgs:    []string{"dist/tests/" + testDriver + ".js"},
 	}
 }
 

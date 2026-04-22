@@ -32,15 +32,15 @@ FROM debian:bookworm-slim
 # - default-jdk-headless: Java compiler and runtime (javac/java)
 # - python3:               Python interpreter
 # - golang:                Go toolchain (for go starter's run.sh)
-# - nodejs 22:            Node.js 22 (NodeSource) for TypeScript via the
-#                          built-in --experimental-strip-types flag. We do
-#                          NOT use tsx because every tsx version depends on
-#                          the es-module-lexer WASM build, which fails inside
-#                          docker with `WebAssembly.instantiate(): Out of
-#                          memory` due to seccomp / cgroup memory limits on
-#                          WASM allocations. Node 22's strip-types is pure
-#                          C++/JS, no WASM, and handles the type-erasure-only
-#                          syntax our student solutions use.
+# - nodejs 20 + typescript:   Node.js 20 (NodeSource) plus the official
+#                              `typescript` package providing `tsc`. We use
+#                              tsc (pure JavaScript) instead of tsx /
+#                              esbuild / swc / Node's --experimental-strip-types,
+#                              because every "fast" TS transpiler ships a
+#                              WASM module and V8's WASM sandbox fails inside
+#                              our docker runner with `WebAssembly.instantiate():
+#                              Out of memory`. tsc is slower to start (~1s)
+#                              but has zero WASM dependencies and just works.
 # - ca-certificates + curl + gnupg: needed for the NodeSource setup script.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-jdk-headless \
@@ -49,11 +49,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g typescript@5.6.3 \
     && apt-get purge -y curl gnupg \
     && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /root/.npm
 
 # Create a non-root user for running tests
 RUN useradd -m -s /bin/bash tester
